@@ -137,7 +137,10 @@ protected:
     virtual void nodeSwap( AVLNode<Key,Value>* n1, AVLNode<Key,Value>* n2);
 
     // Add helper functions here
-
+    void rotateLeft(AVLNode<Key,Value>* node);
+    void rotateRight(AVLNode<Key,Value>* node);
+    void rebalance(AVLNode<Key,Value>* node);
+    void updateBalance(AVLNode<Key,Value>* node);
 
 };
 
@@ -149,6 +152,53 @@ template<class Key, class Value>
 void AVLTree<Key, Value>::insert (const std::pair<const Key, Value> &new_item)
 {
     // TODO
+    AVLNode<Key,Value>* newNode= new AVLNode<Key,Value>(new_item.first, new_item.second, nullptr);
+    if(this->root_ == nullptr){
+        this->root_= newNode;
+        return;
+    }
+    AVLNode<Key,Value>* parent = nullptr;
+    AVLNode<Key,Value>* cur= static_cast<AVLNode<Key,Value>*>(this->root_);
+
+    while(cur != nullptr){
+        parent = cur;
+        if(new_item.first < cur->getKey()){
+            cur = cur->getLeft();
+        }
+        else if(new_item.first > cur->getKey()){
+            cur = cur -> getRight();
+        }
+        else{
+            cur->setValue(new_item.second);
+            delete newNode;
+            return;
+        }
+    }
+    newNode->setParent(parent);
+    if(new_item.first < parent->getKey()){
+        parent->setLeft(newNode);
+    }
+    else{
+        parent->setRight(newNode);
+    }
+    AVLNode<Key, Value>* n= newNode;
+    while(parent != nullptr){
+        if(n == parent->getLeft()){
+            parent->updateBalance(-1);
+        }
+        else{
+            parent->updateBalance(1);
+        }
+        if(parent->getBalance() ==0){
+            break;
+        }
+        else if(std::abs(parent->getBalance())==2){
+            rebalance(parent);
+            break;
+        }
+        n=parent;
+        parent = parent->getParent();
+    }
 }
 
 /*
@@ -159,6 +209,31 @@ template<class Key, class Value>
 void AVLTree<Key, Value>:: remove(const Key& key)
 {
     // TODO
+    AVLNode<Key,Value>* node = static_cast<AVLNode<Key,Value>*>(this->internalFind(key));
+    if(node == nullptr){
+        return;
+    }
+    
+
+    AVLNode<Key,Value>* parent = node->getParent();
+    BinarySearchTree<Key,Value>::remove(key);
+    while(parent != nullptr){
+        if(key < parent->getKey()){
+            parent->updateBalance(1);
+        }
+        else{
+            parent->updateBalance(-1);
+        }
+        if(std::abs(parent->getBalance())==2){
+            rebalance(parent);
+
+        }
+        if(parent->getBalance() != 0){
+            break;
+        }
+
+        parent = parent ->getParent();
+    }
 }
 
 template<class Key, class Value>
@@ -168,6 +243,145 @@ void AVLTree<Key, Value>::nodeSwap( AVLNode<Key,Value>* n1, AVLNode<Key,Value>* 
     int8_t tempB = n1->getBalance();
     n1->setBalance(n2->getBalance());
     n2->setBalance(tempB);
+}
+
+template<class Key, class Value>
+void AVLTree<Key, Value>::rotateLeft(AVLNode<Key,Value>* node){
+    AVLNode<Key, Value>* rightChild = node->getRight();
+    AVLNode<Key,Value>* grandChild= rightChild->getLeft();
+
+    node->setRight(grandChild);
+    if(grandChild != nullptr){
+        grandChild->setParent(node);
+    }
+    rightChild->setParent(node->getParent());
+    if(node->getParent() == nullptr){
+        this->root_ = rightChild;
+    }
+    else if(node == node->getParent()->getLeft()){
+        node->getParent()->setLeft(rightChild);
+    }
+    else{
+        node->getParent()->setRight(rightChild);
+    }
+
+    rightChild->setLeft(node);
+    node->setParent(rightChild);
+
+    if(rightChild->getBalance()==1){
+        node->setBalance(0);
+        rightChild->setBalance(0);
+    }
+    else if(rightChild->getBalance()==0){
+        node->setBalance(1);
+        rightChild->setBalance(-1);
+    }
+    else{
+        if(grandChild != nullptr){
+            if(grandChild->getBalance() ==1){
+                node->setBalance(0);
+                rightChild->setBalance(-1);
+            }
+            else if(grandChild->getBalance() == -1){
+                node->setBalance(1);
+                rightChild->setBalance(0);
+            }
+            else{
+                node->setBalance(0);
+                rightChild->setBalance(0);
+            }
+            grandChild->setBalance(0);
+        }
+    }
+}
+
+template<class Key, class Value>
+void AVLTree<Key, Value>::rotateRight(AVLNode<Key,Value>* node){
+    AVLNode<Key,Value>* leftChild = node->getLeft();
+    AVLNode<Key,Value>* grandChild = leftChild->getRight();
+
+    node->setLeft(grandChild);
+    if(grandChild!= nullptr){
+        grandChild->setParent(node);
+    }
+
+    leftChild->setParent(node->getParent());
+    if(node->getParent()==nullptr){
+        this->root_ = leftChild;
+
+    }
+    else if(node==node->getParent()->getLeft()){
+        node->getParent()->setLeft(leftChild);
+    }
+    else{
+        node->getParent()->setRight(leftChild);
+    }
+
+    leftChild->setRight(node);
+    node->setParent(leftChild);
+
+    if(leftChild->getBalance()==-1){
+        node->setBalance(0);
+        leftChild->setBalance(0);
+    }
+    else if(leftChild->getBalance()==0){
+        node->setBalance(-1);
+        leftChild->setBalance(1);
+    }
+    else{
+        if(grandChild!=nullptr){
+            if(grandChild->getBalance()==-1){
+                node->setBalance(0);
+                leftChild->setBalance(1);
+            }
+            else if(grandChild ->getBalance()==1){
+                node->setBalance(-1);
+                leftChild->setBalance(0);
+            }
+            else{
+                node->setBalance(0);
+                leftChild->setBalance(0);
+            }
+            grandChild->setBalance(0);
+        }
+    }
+
+}
+template<class Key, class Value>
+void AVLTree<Key, Value>::rebalance(AVLNode<Key, Value>* node){
+    if(node->getBalance() == -2){
+        //left heavy
+        if(node->getLeft()->getBalance() <= 0){
+            rotateRight(node);
+        }
+        else{
+            rotateLeft(node->getLeft());
+            rotateRight(node);
+        }
+    }
+    else if(node->getBalance()==2){
+        if(node->getRight()->getBalance() >=0){
+            rotateLeft(node);
+        }
+        else{
+            rotateRight(node->getRight());
+            rotateLeft(node);
+        }
+    }
+}
+template<class Key, class Value>
+void AVLTree<Key, Value>::updateBalance(AVLNode<Key, Value>* node){
+    if(node->getBalance() < -1 || node->getBalance() >1){
+        rebalance(node);
+    }
+    if(node->getParent() != nullptr){
+        if(node == node->getParent()->getLeft()){
+            node->getParent()->updateBalance(-1);
+        }
+        else{
+            node->getParent()->updateBalance(-1);
+        }
+    }
 }
 
 
